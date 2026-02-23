@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Учёт рабочего времени команды</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 15px;
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .block {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+        }
+
+        .block-title {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #667eea;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #555;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 14px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+        }
+
+        .btn-success {
+            background: #10b981;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 0.9rem;
+            width: auto;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        th {
+            background: #667eea;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        tr:hover {
+            background: #f9fafb;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .badge-office { background: #dbeafe; color: #1e40af; }
+        .badge-remote { background: #dcfce7; color: #166534; }
+        .badge-hybrid { background: #fef3c7; color: #92400e; }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-card.warning {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        }
+
+        .stat-card.danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        }
+
+        .stat-card.success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 0.3rem;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .filters {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: #f9fafb;
+            border-radius: 8px;
+        }
+
+        .chart-container {
+            margin-top: 1.5rem;
+            position: relative;
+            height: 300px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #999;
+        }
+
+        .delete-btn {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        .delete-btn:hover {
+            background: #dc2626;
+        }
+
+        .success-message {
+            background: #d1fae5;
+            color: #065f46;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            display: none;
+        }
+
+        .success-message.show {
+            display: block;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .category-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .category-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .category-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+        }
+
+        .period-status {
+            display: inline-block;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-left: 1rem;
+        }
+
+        .period-status.open {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .period-status.closed {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            h1 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 Учёт рабочего времени команды</h1>
+            <p class="subtitle">Внутренняя система табелирования и аналитики</p>
+        </header>
+
+        <!-- Блок 1: Ввод данных -->
+        <div class="grid">
+            <div class="block">
+                <h2 class="block-title">➕ Добавить запись</h2>
+                <div class="success-message" id="success-message"></div>
+
+                <form id="entry-form">
+                    <div class="form-group">
+                        <label>Сотрудник *</label>
+                        <select id="employee" required>
+                            <option value="">Выберите сотрудника</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Дата *</label>
+                        <input type="date" id="date" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Количество часов * (max 24)</label>
+                        <input type="number" id="hours" min="0.5" max="24" step="0.5" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Категория времени *</label>
+                        <select id="category" required>
+                            <option value="">Выберите категорию</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Тип дня *</label>
+                        <select id="work-type" required>
+                            <option value="office">🏢 Офис</option>
+                            <option value="remote">🏠 Удалёнка</option>
+                            <option value="hybrid">🔀 Гибрид</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Комментарий</label>
+                        <textarea id="comment" placeholder="Опциональный комментарий..."></textarea>
+                    </div>
+
+                    <button type="submit" class="btn">Сохранить запись</button>
+                </form>
+            </div>
+
+            <!-- Блок 3: Автоматические расчёты -->
+            <div class="block">
+                <h2 class="block-title">📈 Автоматические расчёты</h2>
+                
+                <div class="form-group">
+                    <label>Сотрудник для расчёта</label>
+                    <select id="calc-employee" onchange="updateCalculations()">
+                        <option value="">Выберите сотрудника</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Период</label>
+                    <input type="month" id="calc-period" onchange="updateCalculations()">
+                </div>
+
+                <div class="stats-grid" id="calculations-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="norm-hours">168</div>
+                        <div class="stat-label">Норма часов</div>
+                    </div>
+                    <div class="stat-card success">
+                        <div class="stat-value" id="fact-hours">0</div>
+                        <div class="stat-label">Факт часов</div>
+                    </div>
+                    <div class="stat-card" id="deviation-card">
+                        <div class="stat-value" id="deviation">0</div>
+                        <div class="stat-label">Отклонение</div>
+                    </div>
+                    <div class="stat-card warning" id="overtime-card">
+                        <div class="stat-value" id="overtime">0</div>
+                        <div class="stat-label">Переработка</div>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="categories-chart"></canvas>
+                </div>
+
+                <div class="action-buttons">
+                    <button class="btn btn-secondary btn-small" onclick="closePeriod()">
+                        🔒 Закрыть месяц
+                    </button>
+                    <button class="btn btn-success btn-small" onclick="exportToExcel()">
+                        📥 Экспорт в Excel
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Блок 2: Таблица -->
+        <div class="block">
+            <h2 class="block-title">📋 Таблица записей<span class="period-status open" id="period-status">Период открыт</span></h2>
+            
+            <div class="filters">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>Фильтр по сотруднику</label>
+                    <select id="filter-employee" onchange="filterRecords()">
+                        <option value="">Все сотрудники</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>С даты</label>
+                    <input type="date" id="filter-date-from" onchange="filterRecords()">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>До даты</label>
+                    <input type="date" id="filter-date-to" onchange="filterRecords()">
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table id="records-table">
+                    <thead>
+                        <tr>
+                            <th>Дата</th>
+                            <th>Сотрудник</th>
+                            <th>Часы</th>
+                            <th>Категория</th>
+                            <th>Тип дня</th>
+                            <th>Комментарий</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="records-body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Блок 4: Общая аналитика -->
+        <div class="block">
+            <h2 class="block-title">📊 Общая аналитика команды</h2>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="total-hours">0</div>
+                    <div class="stat-label">Общие часы</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="avg-hours">0</div>
+                    <div class="stat-label">Среднее на сотрудника</div>
+                </div>
+                <div class="stat-card danger">
+                    <div class="stat-value" id="most-loaded">—</div>
+                    <div class="stat-label">Перегружен</div>
+                </div>
+                <div class="stat-card success">
+                    <div class="stat-value" id="least-loaded">—</div>
+                    <div class="stat-label">Недозагружен</div>
+                </div>
+                <div class="stat-card warning">
+                    <div class="stat-value" id="meetings-percent">0%</div>
+                    <div class="stat-label">Время на встречи</div>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <canvas id="team-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Данные
+        const employees = [
+            'Иванов Иван',
+            'Петрова Мария',
+            'Сидоров Алексей',
+            'Козлова Елена',
+            'Морозов Дмитрий',
+            'Новикова Анна',
+            'Соколов Павел',
+            'Васильева Ольга',
+            'Федоров Сергей',
+            'Михайлова Татьяна'
+        ];
+
+        const categories = {
+            'operational': { name: 'Операционная работа', color: '#667eea' },
+            'development': { name: 'Развитие', color: '#10b981' },
+            'meetings': { name: 'Встречи', color: '#f59e0b' },
+            'planning': { name: 'Планирование', color: '#8b5cf6' },
+            'urgent': { name: 'Срочные задачи', color: '#ef4444' },
+            'learning': { name: 'Обучение', color: '#06b6d4' }
+        };
+
+        let records = JSON.parse(localStorage.getItem('timeRecords') || '[]');
+        let closedPeriods = JSON.parse(localStorage.getItem('closedPeriods') || '[]');
+        let categoriesChart = null;
+        let teamChart = null;
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', function() {
+            // Заполнить dropdown сотрудников
+            const employeeSelects = ['employee', 'calc-employee', 'filter-employee'];
+            employeeSelects.forEach(selectId => {
+                const select = document.getElementById(selectId);
+                employees.forEach(emp => {
+                    const option = document.createElement('option');
+                    option.value = emp;
+                    option.textContent = emp;
+                    select.appendChild(option);
+                });
+            });
+
+            // Заполнить категории
+            const categorySelect = document.getElementById('category');
+            Object.entries(categories).forEach(([key, cat]) => {
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = cat.name;
+                categorySelect.appendChild(option);
+            });
+
+            // Установить текущую дату
+            document.getElementById('date').valueAsDate = new Date();
+            
+            // Установить текущий месяц
+            const now = new Date();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const year = now.getFullYear();
+            document.getElementById('calc-period').value = `${year}-${month}`;
+
+            // Отобразить записи
+            displayRecords();
+            updateCalculations();
+            updateTeamAnalytics();
+
+            // Обработка формы
+            document.getElementById('entry-form').addEventListener('submit', handleSubmit);
+        });
+
+        function handleSubmit(e) {
+            e.preventDefault();
+
+            const employee = document.getElementById('employee').value;
+            const date = document.getElementById('date').value;
+            const hours = parseFloat(document.getElementById('hours').value);
+            const category = document.getElementById('category').value;
+            const workType = document.getElementById('work-type').value;
+            const comment = document.getElementById('comment').value;
+
+            // Проверка на закрытый период
+            const recordMonth = date.substring(0, 7);
+            if (closedPeriods.includes(recordMonth)) {
+                alert('⚠️ Период закрыт! Редактирование запрещено.');
+                return;
+            }
+
+            const record = {
+                id: Date.now(),
+                employee,
+                date,
+                hours,
+                category,
+                workType,
+                comment,
+                createdAt: new Date().toISOString()
+            };
+
+            records.push(record);
+            localStorage.setItem('timeRecords', JSON.stringify(records));
+
+            // Показать успешное сообщение
+            const successMsg = document.getElementById('success-message');
+            successMsg.textContent = `✅ Запись для ${employee} успешно добавлена!`;
+            successMsg.classList.add('show');
+            setTimeout(() => successMsg.classList.remove('show'), 3000);
+
+            // Очистить форму
+            e.target.reset();
+            document.getElementById('date').valueAsDate = new Date();
+
+            // Обновить отображение
+            displayRecords();
+            updateCalculations();
+            updateTeamAnalytics();
+        }
+
+        function displayRecords() {
+            const tbody = document.getElementById('records-body');
+            
+            if (records.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="empty-state">
+                            <p>📭 Нет записей</p>
+                            <p style="font-size: 0.9rem; margin-top: 0.5rem;">Добавьте первую запись</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            // Сортировка по дате (новые первыми)
+            const sorted = [...records].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            tbody.innerHTML = sorted.map(record => {
+                const workTypeLabels = {
+                    office: '🏢 Офис',
+                    remote: '🏠 Удалёнка',
+                    hybrid: '🔀 Гибрид'
+                };
+
+                const workTypeClass = `badge-${record.workType}`;
+                const isPeriodClosed = closedPeriods.includes(record.date.substring(0, 7));
+
+                return `
+                    <tr>
+                        <td>${new Date(record.date).toLocaleDateString('ru-RU')}</td>
+                        <td><strong>${record.employee}</strong></td>
+                        <td><strong>${record.hours}ч</strong></td>
+                        <td>${categories[record.category].name}</td>
+                        <td><span class="badge ${workTypeClass}">${workTypeLabels[record.workType]}</span></td>
+                        <td>${record.comment || '—'}</td>
+                        <td>
+                            ${!isPeriodClosed ? `<button class="delete-btn" onclick="deleteRecord(${record.id})">Удалить</button>` : '🔒'}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function filterRecords() {
+            const filterEmployee = document.getElementById('filter-employee').value;
+            const filterDateFrom = document.getElementById('filter-date-from').value;
+            const filterDateTo = document.getElementById('filter-date-to').value;
+
+            let filtered = records;
+
+            if (filterEmployee) {
+                filtered = filtered.filter(r => r.employee === filterEmployee);
+            }
+
+            if (filterDateFrom) {
+                filtered = filtered.filter(r => r.date >= filterDateFrom);
+            }
+
+            if (filterDateTo) {
+                filtered = filtered.filter(r => r.date <= filterDateTo);
+            }
+
+            const tbody = document.getElementById('records-body');
+            const sorted = [...filtered].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            if (sorted.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="empty-state">
+                            <p>🔍 Нет записей по фильтрам</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = sorted.map(record => {
+                const workTypeLabels = {
+                    office: '🏢 Офис',
+                    remote: '🏠 Удалёнка',
+                    hybrid: '🔀 Гибрид'
+                };
+
+                const workTypeClass = `badge-${record.workType}`;
+                const isPeriodClosed = closedPeriods.includes(record.date.substring(0, 7));
+
+                return `
+                    <tr>
+                        <td>${new Date(record.date).toLocaleDateString('ru-RU')}</td>
+                        <td><strong>${record.employee}</strong></td>
+                        <td><strong>${record.hours}ч</strong></td>
+                        <td>${categories[record.category].name}</td>
+                        <td><span class="badge ${workTypeClass}">${workTypeLabels[record.workType]}</span></td>
+                        <td>${record.comment || '—'}</td>
+                        <td>
+                            ${!isPeriodClosed ? `<button class="delete-btn" onclick="deleteRecord(${record.id})">Удалить</button>` : '🔒'}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function deleteRecord(id) {
+            if (confirm('Удалить запись?')) {
+                records = records.filter(r => r.id !== id);
+                localStorage.setItem('timeRecords', JSON.stringify(records));
+                displayRecords();
+                filterRecords();
+                updateCalculations();
+                updateTeamAnalytics();
+            }
+        }
+
+        function updateCalculations() {
+            const employee = document.getElementById('calc-employee').value;
+            const period = document.getElementById('calc-period').value;
+
+            if (!employee || !period) {
+                return;
+            }
+
+            // Фильтр записей по сотруднику и периоду
+            const filtered = records.filter(r => {
+                return r.employee === employee && r.date.startsWith(period);
+            });
+
+            // Расчёт часов
+            const norm = 168; // можно сделать настраиваемым
+            const fact = filtered.reduce((sum, r) => sum + r.hours, 0);
+            const deviation = fact - norm;
+            const overtime = deviation > 0 ? deviation : 0;
+            const overtimePercent = (overtime / norm) * 100;
+
+            // Обновление отображения
+            document.getElementById('norm-hours').textContent = norm;
+            document.getElementById('fact-hours').textContent = fact.toFixed(1);
+            document.getElementById('deviation').textContent = deviation > 0 ? `+${deviation.toFixed(1)}` : deviation.toFixed(1);
+            document.getElementById('overtime').textContent = overtime.toFixed(1);
+
+            // Цвет карточки отклонения
+            const deviationCard = document.getElementById('deviation-card');
+            if (deviation > 0) {
+                deviationCard.className = 'stat-card warning';
+            } else if (deviation < -20) {
+                deviationCard.className = 'stat-card danger';
+            } else {
+                deviationCard.className = 'stat-card';
+            }
+
+            // Цвет карточки переработки
+            const overtimeCard = document.getElementById('overtime-card');
+            if (overtimePercent > 10) {
+                overtimeCard.className = 'stat-card danger';
+            } else {
+                overtimeCard.className = 'stat-card warning';
+            }
+
+            // Расчёт по категориям
+            const categoryHours = {};
+            Object.keys(categories).forEach(key => {
+                categoryHours[key] = 0;
+            });
+
+            filtered.forEach(r => {
+                categoryHours[r.category] += r.hours;
+            });
+
+            // График категорий
+            updateCategoriesChart(categoryHours, fact);
+        }
+
+        function updateCategoriesChart(categoryHours, totalHours) {
+            const ctx = document.getElementById('categories-chart');
+            
+            if (categoriesChart) {
+                categoriesChart.destroy();
+            }
+
+            const data = Object.entries(categoryHours).filter(([k, v]) => v > 0);
+            
+            if (data.length === 0) {
+                ctx.getContext('2d').clearRect(0, 0, ctx.width, ctx.height);
+                return;
+            }
+
+            categoriesChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.map(([k, v]) => `${categories[k].name} (${((v/totalHours)*100).toFixed(1)}%)`),
+                    datasets: [{
+                        data: data.map(([k, v]) => v),
+                        backgroundColor: data.map(([k, v]) => categories[k].color),
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Распределение времени по категориям'
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateTeamAnalytics() {
+            // Общие часы
+            const totalHours = records.reduce((sum, r) => sum + r.hours, 0);
+            document.getElementById('total-hours').textContent = totalHours.toFixed(1);
+
+            // Среднее на сотрудника
+            const avgHours = employees.length > 0 ? totalHours / employees.length : 0;
+            document.getElementById('avg-hours').textContent = avgHours.toFixed(1);
+
+            // Часы по сотрудникам
+            const employeeHours = {};
+            employees.forEach(emp => {
+                employeeHours[emp] = records.filter(r => r.employee === emp)
+                    .reduce((sum, r) => sum + r.hours, 0);
+            });
+
+            // Самый перегруженный
+            const maxEmployee = Object.entries(employeeHours)
+                .sort((a, b) => b[1] - a[1])[0];
+            document.getElementById('most-loaded').textContent = maxEmployee 
+                ? `${maxEmployee[0].split(' ')[0]} (${maxEmployee[1].toFixed(1)}ч)` 
+                : '—';
+
+            // Самый недозагруженный
+            const minEmployee = Object.entries(employeeHours)
+                .filter(([k, v]) => v > 0)
+                .sort((a, b) => a[1] - b[1])[0];
+            document.getElementById('least-loaded').textContent = minEmployee 
+                ? `${minEmployee[0].split(' ')[0]} (${minEmployee[1].toFixed(1)}ч)` 
+                : '—';
+
+            // % времени на встречи
+            const meetingHours = records.filter(r => r.category === 'meetings')
+                .reduce((sum, r) => sum + r.hours, 0);
+            const meetingPercent = totalHours > 0 ? (meetingHours / totalHours) * 100 : 0;
+            document.getElementById('meetings-percent').textContent = meetingPercent.toFixed(1) + '%';
+
+            // График команды
+            updateTeamChart(employeeHours);
+        }
+
+        function updateTeamChart(employeeHours) {
+            const ctx = document.getElementById('team-chart');
+            
+            if (teamChart) {
+                teamChart.destroy();
+            }
+
+            const data = Object.entries(employeeHours)
+                .filter(([k, v]) => v > 0)
+                .sort((a, b) => b[1] - a[1]);
+
+            if (data.length === 0) {
+                return;
+            }
+
+            teamChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(([k, v]) => k.split(' ')[0]),
+                    datasets: [{
+                        label: 'Часы',
+                        data: data.map(([k, v]) => v),
+                        backgroundColor: '#667eea',
+                        borderColor: '#764ba2',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: 'Распределение часов по сотрудникам'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function closePeriod() {
+            const period = document.getElementById('calc-period').value;
+            
+            if (!period) {
+                alert('Выберите период для закрытия');
+                return;
+            }
+
+            if (closedPeriods.includes(period)) {
+                alert('⚠️ Период уже закрыт');
+                return;
+            }
+
+            if (confirm(`Закрыть период ${period}? После закрытия редактирование будет запрещено.`)) {
+                closedPeriods.push(period);
+                localStorage.setItem('closedPeriods', JSON.stringify(closedPeriods));
+                
+                const statusEl = document.getElementById('period-status');
+                statusEl.textContent = 'Период закрыт';
+                statusEl.className = 'period-status closed';
+                
+                displayRecords();
+                alert('✅ Период успешно закрыт');
+            }
+        }
+
+        function exportToExcel() {
+            if (records.length === 0) {
+                alert('Нет данных для экспорта');
+                return;
+            }
+
+            // Подготовка данных
+            const data = records.map(r => ({
+                'Дата': new Date(r.date).toLocaleDateString('ru-RU'),
+                'Сотрудник': r.employee,
+                'Часы': r.hours,
+                'Категория': categories[r.category].name,
+                'Тип дня': r.workType === 'office' ? 'Офис' : r.workType === 'remote' ? 'Удалёнка' : 'Гибрид',
+                'Комментарий': r.comment || ''
+            }));
+
+            // Создание Excel
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Учёт времени');
+
+            // Скачивание
+            const fileName = `timetracking_${new Date().toISOString().split('T')[0]}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+        }
+    </script>
+</body>
+</html>
